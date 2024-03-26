@@ -4,7 +4,7 @@ import {
     LocationOnOutlined,
     WorkOutlineOutlined,
 } from "@mui/icons-material";
-import { Box, Typography, Divider, useTheme } from "@mui/material";
+import { Box, Typography, Divider, useTheme, Skeleton, Stack } from "@mui/material";
 import UserImage from "components/UserImage";
 import FlexBetween from "components/FlexBetween";
 import WidgetWrapper from "components/WidgetWrapper";
@@ -12,58 +12,76 @@ import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const UserWidget = ({ userId, picturePath }) => {
+const UserWidget = ({ userId, picturePath, isProfile=false }) => {
     const [user, setUser] = useState(null);
+    const [loaded, setLoaded] = useState(false);
     const { palette } = useTheme();
     const navigate = useNavigate();
     const token = useSelector((state) => state.token);
     const dark = palette.neutral.dark;
     const medium = palette.neutral.medium;
     const main = palette.neutral.main;
-    
+
     const getUser = async () => {
-        const response = await fetch(`${process.env.REACT_APP_HOSTURL}/users/${userId}`,{
+        await fetch(`${process.env.REACT_APP_HOSTURL}/users/${userId}`, {
             method: "GET",
             headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json();
-        setUser(data);
+        }).then(async (res) => {
+            setLoaded(true);
+            const data = await res.json();
+            if (!res.ok) return;
+            setUser(data);
+        }).catch(err => {
+            console.errror(err)
+        })
     };
-    const friends=useSelector(state=>state.user.friends)
-    
+    const friendCount = useSelector(state => state.user.friendCount)
+
     useEffect(() => {
         getUser();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (!user) {
+    if(!loaded)
+        return (
+            <Stack spacing={2}>
+                <FlexBetween gap={1}>
+                    <Skeleton variant="circular" width={60} height={60} animation='wave'/>
+                    <Skeleton variant="rounded" width='85%' height='6rem'/>
+                </FlexBetween>
+                <Skeleton variant="rounded" width='100%' height='5.8rem' animation='wave'/>
+                <Skeleton variant="rounded" width='100%' height='5.5rem'/>
+            </Stack>
+        )
+
+    if (!user)
         return null;
-    }
+
 
     const {
         firstName,
         lastName,
         location,
         occupation,
-        viewedProfile,
-        impressions,
+        profileViews,
+        createdAt
     } = user;
-    
+    const d=new Date(createdAt)
+
     return (
         <WidgetWrapper>
             {/* 1st row */}
             <FlexBetween
                 gap="0.5rem"
                 pb="1.1rem"
-                onClick={() => navigate(`/profile/${userId}`)}
             >
-                <FlexBetween gap="1rem">
+                <FlexBetween gap="1rem" onClick={() => isProfile?null:navigate(`/profile/${userId}`)}>
                     <UserImage image={picturePath} alt={firstName} />
                     <Box>
                         <Typography
                             variant="h4"
                             color={dark}
                             fontWeight="500"
-                            sx={{
+                            sx={!isProfile && {
                                 "&:hover": {
                                     color: palette.primary.light,
                                     cursor: "pointer",
@@ -72,7 +90,7 @@ const UserWidget = ({ userId, picturePath }) => {
                         >
                             {firstName} {lastName}
                         </Typography>
-                        <Typography color={medium}>{friends.length} friends</Typography>
+                        <Typography color={palette.neutral.dark}>{friendCount} friends</Typography>
                     </Box>
                 </FlexBetween>
                 <ManageAccountsOutlined />
@@ -99,21 +117,21 @@ const UserWidget = ({ userId, picturePath }) => {
                 <FlexBetween mb="0.5rem">
                     <Typography color={medium}>Profile views</Typography>
                     <Typography color={main} fontWeight="500">
-                        {viewedProfile}
+                        {profileViews}
                     </Typography>
                 </FlexBetween>
                 <FlexBetween>
-                    <Typography color={medium}>Impressions</Typography>
+                    <Typography color={medium}>Member Since</Typography>
                     <Typography color={main} fontWeight="500">
-                        {impressions}
+                        {d.toLocaleString('default', { month: 'short' })+', '+d.getFullYear()}
                     </Typography>
                 </FlexBetween>
             </Box>
 
-            <Divider />
+            {/* <Divider /> */}
 
             {/* 4th row */}
-            <Box p="1rem 0">
+            {/* <Box p="1rem 0">
                 <Typography fontSize="1rem" color={main} fontWeight="500" mb="1rem">
                     Social Profiles
                 </Typography>
@@ -143,7 +161,7 @@ const UserWidget = ({ userId, picturePath }) => {
                     </FlexBetween>
                     <EditOutlined sx={{ color: main }} />
                 </FlexBetween>
-            </Box>
+            </Box> */}
         </WidgetWrapper>
     );
 };
