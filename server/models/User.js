@@ -19,26 +19,31 @@ const UserSchema=new mongoose.Schema(
             type:String,
             required:true,
             max:80,
-            unique:true, 
+            unique:true,
         },
         password:{
             type:String,
             required:true,
             min:7,
             max:20,
+            select:false
         },
         picturePath:{
             type:String,
-            default:"",
+            default:"default.png",
         },
-        friends:{
-            type:Array,
-            default:[]
+        friendCount:{
+            type:Number,
+            default:0
         },
+        friends:[{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:'User',
+            select:false,
+        }],
         location:String,
         occupation:String,
-        viewedProfile:Number,
-        impressions:Number,
+        profileViews:{type:Number,default:0},
     },
     {timestamps:true}
 )

@@ -1,36 +1,63 @@
-import Post from "../models/Post.js";
 import User from "../models/User.js";
+import Post from "../models/Post.js";
+import Comment from "../models/Comment.js";
 
 //create
 export const createPost = async (req, res) => {
     try {
         const { userId, description } = req.body;
-        const user = await User.findById(userId);
         const newPost = new Post({
-            userId,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            location: user.location,
+            user:userId,
             description,
-            userPicturePath: user.picturePath,
             picturePath: req.file?.filename || '',
-            likes: {},
-            comments: [],
         });
         await newPost.save();
-
-        const post = (await Post.find()).reverse();
-        res.status(201).json(post);
+        getFeedPosts(res,res)
     } catch (err) {
         console.error(err)
         res.status(409).json({ message: err.message });
     }
 };
 
+export const sharePost = async (req, res) => {
+    try {
+        const { userId, description, postId } = req.body;
+        const newPost = new Post({
+            user:userId,
+            description,
+            likes: {},
+            share:{isShared:true,ogPost:postId}
+        });
+        await newPost.save();
+        await Post.updateOne({_id:postId},{$inc:{shareCount:1}})
+        getFeedPosts(req,res)
+    } catch (err) {
+        console.error(err)
+        res.status(409).json({ message: err.message });
+    }
+};
+
+export const editPost = async (req, res) => {
+    try {
+        const {description } = req.body;
+        const {id:postId}=req.params;
+        const update={description,picturePath:req.file?.filename||'',edited:true}
+        await Post.findByIdAndUpdate(postId,update);
+        getFeedPosts(req,res)
+    } catch (err) {
+        console.error(err)
+        res.status(409).json({ message: err.message });
+    }
+}
+
+
 // READ
 export const getFeedPosts = async (req, res) => {
     try {
-        const post = (await Post.find()).reverse();
+        const post = await Post.find().populate([
+            {path:'user',select:'firstName lastName picturePath'},
+            {path:'share',populate: {path:'ogPost',select:'user description picturePath createdAt',populate:{path:'user',select:'firstName lastName picturePath'}}}
+            ]).sort({createdAt:'desc'})
         res.status(200).json(post);
     } catch (err) {
         console.error(err)
@@ -41,7 +68,10 @@ export const getFeedPosts = async (req, res) => {
 export const getUserPosts = async (req, res) => {
     try {
         const { userId } = req.params;
-        const post = await Post.find({ userId });
+        const post = await Post.find({ user:userId }).populate([
+            {path:'user',select:'firstName lastName picturePath'},
+            {path:'share',populate: {path:'ogPost',select:'user description picturePath createdAt',populate:{path:'user',select:'firstName lastName picturePath'}}}
+            ]).sort({createdAt:'desc'})
         res.status(200).json(post);
     } catch (err) {
         console.error(err)
@@ -50,6 +80,9 @@ export const getUserPosts = async (req, res) => {
 };
 
 // update
+
+
+
 export const likePost = async (req, res) => {
     try {
         const { id } = req.params;
@@ -74,15 +107,30 @@ export const likePost = async (req, res) => {
 
 export const commentPost = async (req, res) => {
     try {
-        const { id } = req.params;
-        const {userId,comment,date } = req.body;
-        if(!date) date=Date.now()
-        const post = await Post.findById(id);
-        post.comments.push({userId,comment,date});
-        await post.save()
-        res.status(200).json({userId,comment,date});
+        const { id:postId } = req.params;
+        const {userId,comment} = req.body;
+        const newComment=new Comment({
+            postId,
+            user:userId,
+            comment
+        })
+        await newComment.save();
+        await Post.updateOne({_id:postId},{$inc:{commentsCount:1}})
+        await newComment.populate('user','firstName lastName picturePath')
+        res.status(200).json(newComment);
     } catch (err) {
         console.error(err)
         res.status(404).json({ message: err.message });
     }
 };
+
+export const getComments = async (req, res) => {
+    try {
+        const { id:postId } = req.params;
+        const comments= await Comment.find({postId}).populate('user','firstName lastName picturePath')
+        res.status(200).json(comments)
+    } catch (err) {
+        console.error(err)
+        res.status(404).json({ message: err.message });
+    }
+}
